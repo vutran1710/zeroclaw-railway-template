@@ -33,6 +33,8 @@ RUN apt-get update && apt-get install -y \
     procps \
     file \
     curl \
+    wget \
+    jq \
     ca-certificates \
     nodejs \
     npm \
@@ -66,8 +68,9 @@ RUN echo '# ZeroClaw aliases' >> /etc/bash.bashrc && \
     echo 'alias brew-install="brew install"' >> /etc/bash.bashrc && \
     echo 'eval "$(/data/.linuxbrew/bin/brew shellenv)"' >> /etc/bash.bashrc
 
-# Copy startup script
+# Copy startup script and health server
 COPY start.sh /app/start.sh
+COPY health-server.js /app/health-server.js
 RUN chmod +x /app/start.sh
 
 # Set environment - HOME=/data makes ZeroClaw use /data/.zeroclaw
