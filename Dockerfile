@@ -1,30 +1,8 @@
 # syntax=docker/dockerfile:1.7
 
-# ── Stage 1: Build ZeroClaw from source ─────────────────────────
-FROM rust:1.92-slim AS builder
-
-WORKDIR /src
-
-# Install build dependencies
-RUN apt-get update && apt-get install -y \
-    pkg-config \
-    git \
-    && rm -rf /var/lib/apt/lists/*
-
-# Clone ZeroClaw repository
-ARG ZEROCLAW_VERSION=main
-RUN git clone --depth 1 --branch ${ZEROCLAW_VERSION} https://github.com/zeroclaw-labs/zeroclaw.git .
-
-# Build ZeroClaw in release mode
-RUN cargo build --release --locked
-
-# Strip binary for smaller size
-RUN strip target/release/zeroclaw
-
-# ── Stage 2: Runtime ────────────────────────────────────────────
 FROM debian:trixie-slim
 
-# Install additional tools (nano, vim, nodejs, npm, etc.)
+# Install runtime tools (nano, vim, nodejs, npm, etc.)
 RUN apt-get update && apt-get install -y \
     nano \
     vim \
@@ -40,6 +18,12 @@ RUN apt-get update && apt-get install -y \
     npm \
     && rm -rf /var/lib/apt/lists/*
 
+# Download pre-built ZeroClaw binary from GitHub releases
+ARG ZEROCLAW_VERSION=v0.1.7
+RUN curl -fsSL "https://github.com/zeroclaw-labs/zeroclaw/releases/download/${ZEROCLAW_VERSION}/zeroclaw-x86_64-unknown-linux-gnu.tar.gz" \
+    | tar -xz -C /usr/local/bin zeroclaw \
+    && chmod +x /usr/local/bin/zeroclaw
+
 # Configure npm to use persistent storage (survives redeploys)
 ENV NPM_CONFIG_PREFIX=/data/.npm-global
 ENV PATH="/data/.npm-global/bin:$PATH"
@@ -49,9 +33,6 @@ ENV HOMEBREW_PREFIX=/data/.linuxbrew
 ENV HOMEBREW_CELLAR=/data/.linuxbrew/Cellar
 ENV HOMEBREW_REPOSITORY=/data/.linuxbrew/Homebrew
 ENV PATH="/data/.linuxbrew/bin:/data/.linuxbrew/sbin:$PATH"
-
-# Copy ZeroClaw binary from builder
-COPY --from=builder /src/target/release/zeroclaw /usr/local/bin/zeroclaw
 
 # Create data directory for persistent storage
 RUN mkdir -p /data/.zeroclaw /data/.npm-global /data/.npm-cache /data/.linuxbrew
