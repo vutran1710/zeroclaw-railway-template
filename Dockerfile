@@ -60,8 +60,8 @@ RUN chmod +x /app/start.sh
 ENV HOME=/data
 ENV SHELL=/bin/bash
 
-# Expose gateway port
-EXPOSE 8080
+# Expose health server port
+EXPOSE 3000
 
 WORKDIR /data
 

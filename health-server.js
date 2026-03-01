@@ -1,5 +1,5 @@
 // P2-02: Lightweight health endpoint for Railway healthcheck.
-// Runs on port 8080, returns JSON with tenant info and uptime.
+// Runs on port 3000, returns JSON with tenant info and uptime.
 
 const http = require('http');
 
@@ -25,6 +25,6 @@ const server = http.createServer((req, res) => {
   res.end(body);
 });
 
-server.listen(8080, () => {
-  console.log('Health server listening on :8080');
+server.listen(3000, () => {
+  console.log('Health server listening on :3000');
 });

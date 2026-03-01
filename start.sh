@@ -318,7 +318,7 @@ notify_provision_complete() {
     # Poll local health endpoint until it responds (max 60s)
     local deadline=$((SECONDS + 60))
     while [ $SECONDS -lt $deadline ]; do
-        if curl -sf http://localhost:8080/health > /dev/null 2>&1; then
+        if curl -sf http://localhost:3000/health > /dev/null 2>&1; then
             echo "Daemon is healthy."
             break
         fi
@@ -387,7 +387,7 @@ start_managed() {
 
 node /app/health-server.js &
 HEALTH_PID=$!
-echo "Health endpoint started on :8080 (PID: $HEALTH_PID)"
+echo "Health endpoint started on :3000 (PID: $HEALTH_PID)"
 
 # ─── Shared Setup ─────────────────────────────────────────────────
 
