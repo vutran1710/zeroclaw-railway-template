@@ -266,6 +266,33 @@ validate_tenant_periodic() {
     done
 }
 
+# ─── Seed USER.md with defaults (preserves existing) ─────────────
+
+USER_MD_FILE="/data/.zeroclaw/USER.md"
+
+seed_user_md() {
+    if [ -f "$USER_MD_FILE" ]; then
+        echo "USER.md already exists — preserving user customizations."
+        return
+    fi
+
+    echo "Seeding USER.md with defaults..."
+    cat > "$USER_MD_FILE" << USERMD
+# Name
+ClawLauncher Assistant
+
+# Style
+Helpful, concise, and proactive
+
+# Language
+English
+
+# User Bio
+Telegram user @${TELEGRAM_USERNAME}
+USERMD
+    echo "USER.md seeded."
+}
+
 # ─── Generate Managed Config ─────────────────────────────────────
 
 generate_managed_config() {
@@ -283,6 +310,9 @@ generate_managed_config() {
 
     # Render IDENTITY.md from template + dynamic sections
     render_identity
+
+    # Seed USER.md with defaults (only if it doesn't exist — preserves user customizations)
+    seed_user_md
 }
 
 # ─── Notify backend that provisioning is complete ────────────────
