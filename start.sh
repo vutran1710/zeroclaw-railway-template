@@ -326,7 +326,7 @@ seed_user_md() {
     echo "Seeding USER.md with defaults..."
     cat > "$USER_MD_FILE" << USERMD
 # Name
-ClawLauncher Assistant
+1claw Assistant
 
 # Style
 Helpful, concise, and proactive
@@ -444,7 +444,7 @@ fi
 # ─── Mode Selection ──────────────────────────────────────────────
 
 if [ "$CLAWLAUNCHER_MODE" = "managed" ]; then
-    echo "=== ClawLauncher Managed Mode ==="
+    echo "=== 1claw.network Managed Mode ==="
 
     # Generate config + identity from templates
     generate_managed_config
