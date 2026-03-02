@@ -34,6 +34,50 @@ IDENTITY_FILE="/data/.zeroclaw/IDENTITY.md"
 TEMPLATE_DIR="/app/templates"
 DAEMON_PID=""
 
+# ─── Model overrides (persisted by /models command) ──────────────
+
+MODEL_OVERRIDES_FILE="/data/.zeroclaw/model-overrides.json"
+
+apply_model_overrides() {
+    if [ ! -f "$MODEL_OVERRIDES_FILE" ]; then
+        return
+    fi
+
+    echo "  Applying model overrides from $MODEL_OVERRIDES_FILE..."
+
+    # Override default_model if set
+    local new_default
+    new_default=$(jq -r '.default_model // empty' "$MODEL_OVERRIDES_FILE" 2>/dev/null)
+    if [ -n "$new_default" ]; then
+        sed -i "s/^default_model = .*/default_model = \"${new_default}\"/" "$CONFIG_FILE"
+        echo "    default_model -> ${new_default}"
+    fi
+
+    # Override per-task model routes
+    local tasks
+    tasks=$(jq -r '.routes // {} | keys[]' "$MODEL_OVERRIDES_FILE" 2>/dev/null)
+    for task in $tasks; do
+        local model
+        model=$(jq -r ".routes.\"$task\"" "$MODEL_OVERRIDES_FILE")
+        if [ -n "$model" ] && [ "$model" != "null" ]; then
+            # Find and replace the model for this hint in existing [[model_routes]]
+            # Use python for reliable multi-line TOML editing
+            python3 -c "
+import re, sys
+config = open('$CONFIG_FILE').read()
+# Pattern: [[model_routes]] block with hint = \"$task\"
+pattern = r'(\[\[model_routes\]\]\nhint = \"${task}\"\nprovider = \"openrouter\"\nmodel = \")([^\"]*)(\")'
+new_config = re.sub(pattern, r'\g<1>${model}\3', config)
+if new_config != config:
+    open('$CONFIG_FILE', 'w').write(new_config)
+    print('    ${task} -> ${model}')
+else:
+    print('    ${task}: no matching route found, skipping')
+" 2>/dev/null || echo "    WARNING: failed to apply override for ${task}"
+        fi
+    done
+}
+
 # ─── Config rendering: envsubst + dynamic sections ───────────────
 
 render_config() {
@@ -49,6 +93,9 @@ render_config() {
     if [ -n "$BOT_CONFIG_JSON" ]; then
         append_model_routes
     fi
+
+    # Apply user's model overrides (if any — saved by /models command)
+    apply_model_overrides
 
     echo "config.toml rendered."
 }
