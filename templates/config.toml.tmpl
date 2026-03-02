@@ -1,0 +1,37 @@
+# ClawLauncher managed bot
+# Tenant: ${TENANT_ID}
+# Plan: ${PLAN_ID}
+
+default_provider = "openrouter"
+default_model = "${DEFAULT_MODEL}"
+default_temperature = 0.7
+
+[autonomy]
+level = "full"
+workspace_only = false
+allowed_commands = []
+forbidden_paths = []
+max_actions_per_hour = 10000
+max_cost_per_day_cents = 100000
+
+[gateway]
+host = "0.0.0.0"
+port = 8080
+require_pairing = false
+allow_public_bind = true
+
+[browser]
+enabled = true
+allowed_domains = ["*"]
+backend = "agent_browser"
+
+[heartbeat]
+enabled = true
+interval_minutes = 15
+
+[channels_config]
+cli = false
+
+[channels_config.telegram]
+bot_token = "${BOT_TOKEN}"
+allowed_users = ["${TELEGRAM_USERNAME}"]

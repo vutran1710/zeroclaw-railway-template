@@ -2,7 +2,7 @@
 
 FROM debian:trixie-slim
 
-# Install runtime tools (nano, vim, nodejs, npm, etc.)
+# Install runtime tools + gettext-base (envsubst) + python3 + common CLI utils
 RUN apt-get update && apt-get install -y \
     nano \
     vim \
@@ -16,6 +16,18 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     nodejs \
     npm \
+    gettext-base \
+    python3 \
+    python3-pip \
+    python3-venv \
+    unzip \
+    zip \
+    less \
+    htop \
+    tree \
+    tmux \
+    rsync \
+    openssh-client \
     && rm -rf /var/lib/apt/lists/*
 
 # Download pre-built ZeroClaw binary from GitHub releases
@@ -30,14 +42,18 @@ RUN ARCH=$([ "$TARGETARCH" = "arm64" ] && echo "aarch64" || echo "x86_64") && \
 ENV NPM_CONFIG_PREFIX=/data/.npm-global
 ENV PATH="/data/.npm-global/bin:$PATH"
 
-# Configure Homebrew to use persistent storage
+# Pre-install Homebrew to persistent storage path (avoid 30-60s lazy install at boot)
 ENV HOMEBREW_PREFIX=/data/.linuxbrew
 ENV HOMEBREW_CELLAR=/data/.linuxbrew/Cellar
 ENV HOMEBREW_REPOSITORY=/data/.linuxbrew/Homebrew
 ENV PATH="/data/.linuxbrew/bin:/data/.linuxbrew/sbin:$PATH"
 
-# Create data directory for persistent storage
-RUN mkdir -p /data/.zeroclaw /data/.npm-global /data/.npm-cache /data/.linuxbrew
+RUN mkdir -p /data/.linuxbrew/Homebrew /data/.linuxbrew/{bin,etc,include,lib,opt,sbin,share,var} && \
+    git clone --depth=1 https://github.com/Homebrew/brew /data/.linuxbrew/Homebrew && \
+    ln -sf /data/.linuxbrew/Homebrew/bin/brew /data/.linuxbrew/bin/brew
+
+# Create data directories for persistent storage
+RUN mkdir -p /data/.zeroclaw /data/.npm-global /data/.npm-cache
 
 # Add shell aliases for faster typing
 RUN echo '# ZeroClaw aliases' >> /etc/bash.bashrc && \
@@ -51,7 +67,8 @@ RUN echo '# ZeroClaw aliases' >> /etc/bash.bashrc && \
     echo 'alias brew-install="brew install"' >> /etc/bash.bashrc && \
     echo 'eval "$(/data/.linuxbrew/bin/brew shellenv)"' >> /etc/bash.bashrc
 
-# Copy startup script
+# Copy config templates + startup script
+COPY templates/ /app/templates/
 COPY start.sh /app/start.sh
 RUN chmod +x /app/start.sh
 

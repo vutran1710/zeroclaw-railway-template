@@ -4,11 +4,9 @@ set -e
 # ═══════════════════════════════════════════════════════════════════
 # ZeroClaw Railway Template — start.sh
 # Supports two modes:
-#   1. Managed (CLAWLAUNCHER_MODE=managed): auto-generates config from env vars,
-#      runs daemon + health sidecar + periodic tenant validation
+#   1. Managed (CLAWLAUNCHER_MODE=managed): renders config from templates,
+#      runs daemon + periodic tenant validation
 #   2. Interactive (default): waits for manual onboard, then runs daemon
-#
-# Tickets: P2-01, P2-02, P2-03, P2-04, P2-07, P2-08, P2-11
 # ═══════════════════════════════════════════════════════════════════
 
 # ─── Guard: prevent double execution ─────────────────────────────
@@ -33,12 +31,47 @@ fi
 
 CONFIG_FILE="/data/.zeroclaw/config.toml"
 IDENTITY_FILE="/data/.zeroclaw/IDENTITY.md"
+TEMPLATE_DIR="/app/templates"
 DAEMON_PID=""
 
-# ─── P2-07: Generate model routes + query classification ─────────
+# ─── Config rendering: envsubst + dynamic sections ───────────────
 
-generate_model_routes() {
-    echo "Generating model routes from BOT_CONFIG_JSON..."
+render_config() {
+    echo "Rendering config.toml from template..."
+
+    # Render base template (substitutes ${VAR} placeholders from env)
+    envsubst < "${TEMPLATE_DIR}/config.toml.tmpl" > "$CONFIG_FILE"
+
+    # Append [cost] section for non-PAYG plans (when both limits are set)
+    append_cost_section
+
+    # Append model routes from BOT_CONFIG_JSON
+    if [ -n "$BOT_CONFIG_JSON" ]; then
+        append_model_routes
+    fi
+
+    echo "config.toml rendered."
+}
+
+append_cost_section() {
+    # Only emit [cost] when BOTH daily and monthly limits are non-empty
+    # PAYG plans have these as empty/unset — no cost section for them
+    if [ -n "$DAILY_LIMIT_USD" ] && [ -n "$MONTHLY_LIMIT_USD" ]; then
+        cat >> "$CONFIG_FILE" << COST
+
+[cost]
+enabled = true
+daily_limit_usd = ${DAILY_LIMIT_USD}
+monthly_limit_usd = ${MONTHLY_LIMIT_USD}
+COST
+        echo "  [cost] section appended (daily=$DAILY_LIMIT_USD, monthly=$MONTHLY_LIMIT_USD)"
+    else
+        echo "  [cost] section skipped (PAYG — no limits)"
+    fi
+}
+
+append_model_routes() {
+    echo "  Appending model routes from BOT_CONFIG_JSON..."
 
     local auto_routing
     auto_routing=$(echo "$BOT_CONFIG_JSON" | jq -r '.model_routing.auto_routing // true')
@@ -109,95 +142,68 @@ priority = 1
 CLASSIFICATION
     fi
 
-    echo "Model routes generated."
+    echo "  Model routes appended."
 }
 
-# ─── P2-08: Generate IDENTITY.md ─────────────────────────────────
+# ─── Identity rendering: envsubst + dynamic sections ─────────────
 
-generate_identity() {
-    echo "Generating IDENTITY.md..."
+render_identity() {
+    echo "Rendering IDENTITY.md from template..."
 
-    local plan_name="${PLAN_ID:-your}"
-    local username="${TELEGRAM_USERNAME}"
+    # Render base template
+    envsubst < "${TEMPLATE_DIR}/identity.md.tmpl" > "$IDENTITY_FILE"
 
-    # Build integrations list from BOT_CONFIG_JSON
-    local integrations_text=""
-    if [ -n "$BOT_CONFIG_JSON" ]; then
-        local enabled
-        enabled=$(echo "$BOT_CONFIG_JSON" | jq -r '
-            .integrations // {} | to_entries[]
-            | select(.value == true) | .key
-        ')
-        if [ -n "$enabled" ]; then
-            integrations_text="## Enabled Integrations
-"
-            for integration in $enabled; do
-                case "$integration" in
-                    github) integrations_text+="- **GitHub**: Access repos, issues, pull requests
-" ;;
-                    gmail) integrations_text+="- **Gmail**: Read and draft emails
-" ;;
-                    google_docs) integrations_text+="- **Google Docs**: Create and edit documents
-" ;;
-                    google_spreadsheet) integrations_text+="- **Google Sheets**: Query and update spreadsheets
-" ;;
-                    notebook_llm) integrations_text+="- **NotebookLM**: Access research notebooks
-" ;;
-                    opencode) integrations_text+="- **OpenCode**: Run code in sandboxed environment
-" ;;
-                    jira) integrations_text+="- **Jira**: Manage tickets and sprints
-" ;;
-                esac
-            done
-        fi
-    fi
+    # Append budget info
+    append_budget_section
 
-    # Budget info
-    local budget_text=""
+    # Append enabled integrations
+    append_integrations_section
+
+    echo "IDENTITY.md rendered."
+}
+
+append_budget_section() {
     if [ -n "$MONTHLY_LIMIT_USD" ]; then
-        budget_text="You operate within a \$${MONTHLY_LIMIT_USD}/month AI credit budget"
+        local budget_text="## Budget\n\nYou operate within a \$${MONTHLY_LIMIT_USD}/month AI credit budget"
         if [ -n "$DAILY_LIMIT_USD" ]; then
             budget_text+=" with a \$${DAILY_LIMIT_USD}/day spending cap"
         fi
         budget_text+=". Be mindful of cost — prefer efficient responses when possible."
-    else
-        budget_text="You operate on a pay-as-you-go plan with no fixed budget limit. The user manages their own AI credit balance."
+        echo -e "\n${budget_text}" >> "$IDENTITY_FILE"
     fi
-
-    cat > "$IDENTITY_FILE" << IDENTITY
-# ClawLauncher AI Assistant
-
-You are a private AI assistant deployed via ClawLauncher for @${username} on Telegram.
-
-## About You
-
-- You are a dedicated, personal AI bot running 24/7 on your own infrastructure
-- You have full autonomy over your environment — you can install packages, run commands, access the filesystem
-- You are powered by multiple AI models via OpenRouter, with intelligent routing based on task type
-- Your primary interface is Telegram
-
-## Your User
-
-- Telegram username: @${username}
-- Subscription plan: ${plan_name}
-- ${budget_text}
-
-## Guidelines
-
-- Be helpful, concise, and proactive
-- You can execute commands, write files, and use tools autonomously
-- For coding tasks, provide working solutions with explanations
-- For research, be thorough but summarize key findings
-- Respect the user's time — be direct, avoid unnecessary preamble
-- If you're unsure about something, say so honestly
-
-${integrations_text}
-IDENTITY
-
-    echo "IDENTITY.md generated."
+    # PAYG: no budget section — user manages their own balance
 }
 
-# ─── P2-03: Tenant Validation ────────────────────────────────────
+append_integrations_section() {
+    if [ -z "$BOT_CONFIG_JSON" ]; then
+        return
+    fi
+
+    local enabled
+    enabled=$(echo "$BOT_CONFIG_JSON" | jq -r '.integrations // {} | to_entries[] | select(.value == true) | .key')
+
+    if [ -z "$enabled" ]; then
+        return
+    fi
+
+    echo "" >> "$IDENTITY_FILE"
+    echo "## Enabled Integrations" >> "$IDENTITY_FILE"
+    echo "" >> "$IDENTITY_FILE"
+
+    for integration in $enabled; do
+        case "$integration" in
+            github)               echo "- **GitHub**: Access repos, issues, pull requests" >> "$IDENTITY_FILE" ;;
+            gmail)                echo "- **Gmail**: Read and draft emails" >> "$IDENTITY_FILE" ;;
+            google_docs)          echo "- **Google Docs**: Create and edit documents" >> "$IDENTITY_FILE" ;;
+            google_spreadsheet)   echo "- **Google Sheets**: Query and update spreadsheets" >> "$IDENTITY_FILE" ;;
+            notebook_llm)         echo "- **NotebookLM**: Access research notebooks" >> "$IDENTITY_FILE" ;;
+            opencode)             echo "- **OpenCode**: Run code in sandboxed environment" >> "$IDENTITY_FILE" ;;
+            jira)                 echo "- **Jira**: Manage tickets and sprints" >> "$IDENTITY_FILE" ;;
+        esac
+    done
+}
+
+# ─── Tenant Validation ───────────────────────────────────────────
 
 validate_tenant_startup() {
     echo "Validating tenant with backend..."
@@ -260,7 +266,7 @@ validate_tenant_periodic() {
     done
 }
 
-# ─── P2-01: Generate Managed Config ──────────────────────────────
+# ─── Generate Managed Config ─────────────────────────────────────
 
 generate_managed_config() {
     # Validate required env vars
@@ -272,61 +278,11 @@ generate_managed_config() {
         fi
     done
 
-    echo "Generating config.toml..."
+    # Render config.toml from template + dynamic sections
+    render_config
 
-    # Base config
-    cat > "$CONFIG_FILE" << TOML_BASE
-# Auto-generated by ClawLauncher managed mode
-# Tenant: ${TENANT_ID}
-# Plan: ${PLAN_ID:-unknown}
-
-default_provider = "openrouter"
-default_model = "${DEFAULT_MODEL}"
-default_temperature = 0.7
-
-[autonomy]
-level = "full"
-workspace_only = false
-allowed_commands = []
-forbidden_paths = []
-max_actions_per_hour = 100
-max_cost_per_day_cents = 1000
-
-[gateway]
-host = "0.0.0.0"
-port = 8080
-require_pairing = false
-allow_public_bind = true
-
-[channels_config]
-cli = false
-
-[channels_config.telegram]
-bot_token = "${BOT_TOKEN}"
-allowed_users = ["${TELEGRAM_USERNAME}"]
-TOML_BASE
-
-    # P2-04: Cost enforcement
-    if [ -n "$DAILY_LIMIT_USD" ] || [ -n "$MONTHLY_LIMIT_USD" ]; then
-        echo "" >> "$CONFIG_FILE"
-        echo "[cost]" >> "$CONFIG_FILE"
-        if [ -n "$DAILY_LIMIT_USD" ]; then
-            echo "daily_limit_usd = ${DAILY_LIMIT_USD}" >> "$CONFIG_FILE"
-        fi
-        if [ -n "$MONTHLY_LIMIT_USD" ]; then
-            echo "monthly_limit_usd = ${MONTHLY_LIMIT_USD}" >> "$CONFIG_FILE"
-        fi
-    fi
-
-    # P2-07: Model routes from BOT_CONFIG_JSON
-    if [ -n "$BOT_CONFIG_JSON" ]; then
-        generate_model_routes
-    fi
-
-    echo "config.toml generated."
-
-    # P2-08: Identity
-    generate_identity
+    # Render IDENTITY.md from template + dynamic sections
+    render_identity
 }
 
 # ─── Notify backend that provisioning is complete ────────────────
@@ -364,7 +320,7 @@ notify_provision_complete() {
     fi
 }
 
-# ─── P2-11: Start Managed (daemon + sidecars) ────────────────────
+# ─── Start Managed (daemon + sidecars) ───────────────────────────
 
 start_managed() {
     echo "Starting managed bot..."
@@ -372,7 +328,7 @@ start_managed() {
     # Export OPENROUTER_API_KEY as ZEROCLAW_API_KEY (ZeroClaw reads this env var)
     export ZEROCLAW_API_KEY="${OPENROUTER_API_KEY}"
 
-    # Start periodic tenant validation in background (P2-03)
+    # Start periodic tenant validation in background
     validate_tenant_periodic &
     local validation_pid=$!
     echo "Periodic validation started (PID: $validation_pid)"
@@ -428,19 +384,7 @@ if [ -f "$NPM_PACKAGES_FILE" ]; then
     done < "$NPM_PACKAGES_FILE"
 fi
 
-# Install Homebrew if not present
-if [ ! -f "/data/.linuxbrew/bin/brew" ]; then
-    echo "Installing Homebrew to persistent storage..."
-    export NONINTERACTIVE=1
-    export HOMEBREW_PREFIX=/data/.linuxbrew
-    export HOMEBREW_CELLAR=/data/.linuxbrew/Cellar
-    export HOMEBREW_REPOSITORY=/data/.linuxbrew/Homebrew
-    git clone --depth=1 https://github.com/Homebrew/brew "$HOMEBREW_REPOSITORY"
-    mkdir -p "$HOMEBREW_PREFIX"/{bin,etc,include,lib,opt,sbin,share,var}
-    ln -sf "$HOMEBREW_REPOSITORY/bin/brew" "$HOMEBREW_PREFIX/bin/brew"
-    echo "Homebrew installed successfully!"
-fi
-
+# Homebrew: pre-installed in Docker image, just activate shellenv
 eval "$(/data/.linuxbrew/bin/brew shellenv)" 2>/dev/null || true
 
 # Install Homebrew packages from persistent list (if exists)
@@ -463,7 +407,7 @@ fi
 if [ "$CLAWLAUNCHER_MODE" = "managed" ]; then
     echo "=== ClawLauncher Managed Mode ==="
 
-    # Generate config + identity
+    # Generate config + identity from templates
     generate_managed_config
 
     # Validate tenant before starting
