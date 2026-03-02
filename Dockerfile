@@ -48,7 +48,15 @@ ENV HOMEBREW_CELLAR=/data/.linuxbrew/Cellar
 ENV HOMEBREW_REPOSITORY=/data/.linuxbrew/Homebrew
 ENV PATH="/data/.linuxbrew/bin:/data/.linuxbrew/sbin:$PATH"
 
-RUN mkdir -p /data/.linuxbrew/Homebrew /data/.linuxbrew/{bin,etc,include,lib,opt,sbin,share,var} && \
+RUN mkdir -p /data/.linuxbrew/Homebrew \
+    /data/.linuxbrew/bin \
+    /data/.linuxbrew/etc \
+    /data/.linuxbrew/include \
+    /data/.linuxbrew/lib \
+    /data/.linuxbrew/opt \
+    /data/.linuxbrew/sbin \
+    /data/.linuxbrew/share \
+    /data/.linuxbrew/var && \
     git clone --depth=1 https://github.com/Homebrew/brew /data/.linuxbrew/Homebrew && \
     ln -sf /data/.linuxbrew/Homebrew/bin/brew /data/.linuxbrew/bin/brew
 
