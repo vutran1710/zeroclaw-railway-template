@@ -271,19 +271,19 @@ append_claude_code_section() {
 
 Your server has Claude Code CLI installed. Users can launch a Remote Control session to get full Claude Code access in their browser.
 
-### `/claude` command
+### `/claude-code` command
 
-When the user sends `/claude`:
+When the user sends `/claude-code`:
 
-1. Check if a `claude` process is already running (`pgrep -f "claude remote-control"`). If yes, tell the user a session is already active and remind them to use `/claude exit` first.
+1. Check if a `claude` process is already running (`pgrep -f "claude remote-control"`). If yes, tell the user a session is already active and remind them to use `/claude-code exit` first.
 2. Run: `cd /data/workspace && claude remote-control 2>&1 &`
 3. Wait 3 seconds, then read the output to capture the session URL (looks like `https://claude.ai/remote/...`)
 4. Send the URL to the user as a clickable link
 5. Tell them to open it in their browser — they will authenticate with their own Claude account
 
-### `/claude exit` command
+### `/claude-code exit` command
 
-When the user sends `/claude exit`:
+When the user sends `/claude-code exit`:
 
 1. Run: `pkill -f "claude remote-control"` to kill the session
 2. Confirm to the user that the session was terminated
