@@ -269,17 +269,28 @@ append_claude_code_section() {
 
 ## Claude Code (Remote Control)
 
-Your server has Claude Code CLI installed. Users can launch a Remote Control session to get full Claude Code access in their browser.
+Your server has Claude Code CLI installed. Users can launch a Remote Control session to get full Claude Code access in their browser. This requires a Claude Max subscription.
+
+### `/claudelogin` command
+
+When the user sends `/claudelogin`:
+
+1. First check if already authenticated: run `claude auth status --text 2>&1` and look for "Logged in". If already logged in, tell the user they are already authenticated and can use `/claudecode`.
+2. Run: `claude auth login 2>&1` and capture the output. It will print a URL starting with `https://claude.ai/oauth/authorize?...`.
+3. Send that URL to the user as a clickable link.
+4. Tell the user: "Open this link to sign in with your Claude account. Once done, you can use `/claudecode` to start a Remote Control session."
+5. Note: this only needs to be done once — the auth persists across sessions.
 
 ### `/claudecode` command
 
 When the user sends `/claudecode`:
 
-1. Check if a `claude` process is already running (`pgrep -f "claude remote-control"`). If yes, tell the user a session is already active and remind them to use `/claudecode exit` first.
-2. Run: `cd /data/workspace && claude remote-control 2>&1 &`
-3. Wait 3 seconds, then read the output to capture the session URL (looks like `https://claude.ai/remote/...`)
-4. Send the URL to the user as a clickable link
-5. Tell them to open it in their browser — they will authenticate with their own Claude account
+1. First check if authenticated: run `claude auth status --text 2>&1`. If NOT logged in, tell the user to run `/claudelogin` first.
+2. Check if a `claude` process is already running (`pgrep -f "claude remote-control"`). If yes, tell the user a session is already active and remind them to use `/claudecode exit` first.
+3. Run: `cd /data/workspace && claude remote-control 2>&1 &`
+4. Wait 5 seconds, then read the output to capture the session URL (looks like `https://claude.ai/remote/...`)
+5. Send the URL to the user as a clickable link
+6. Tell them to open it in their browser to access Claude Code
 
 ### `/claudecode exit` command
 
@@ -290,8 +301,8 @@ When the user sends `/claudecode exit`:
 
 ### Important
 
+- User must run `/claudelogin` once before using `/claudecode` (requires Claude Max subscription)
 - Only one Remote Control session at a time
-- User authenticates on their own device — no login needed on the server
 - The session runs in `/data/workspace` — files persist across sessions
 - If `claude` command is not found, tell the user Claude Code CLI is not installed and suggest contacting support
 CLAUDE_CODE
