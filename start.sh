@@ -203,9 +203,6 @@ render_identity() {
     # Append budget info
     append_budget_section
 
-    # Append Claude Code section (conditional on bot_config)
-    append_claude_code_section
-
     echo "IDENTITY.md rendered."
 }
 
@@ -249,51 +246,10 @@ install_claude_code() {
     fi
 }
 
-# ─── Claude Code identity section (conditional on bot_config) ────
-
-append_claude_code_section() {
-    if [ -z "$BOT_CONFIG_JSON" ]; then
-        return
-    fi
-
-    local enabled
-    enabled=$(echo "$BOT_CONFIG_JSON" | jq -r '.claude_code_enabled // false')
-
-    if [ "$enabled" != "true" ]; then
-        echo "  Claude Code section skipped (not enabled in bot_config)"
-        return
-    fi
-
-    echo "  Appending Claude Code section to IDENTITY.md..."
-    cat >> "$IDENTITY_FILE" << 'CLAUDE_CODE'
-
-## IMPORTANT: /claudecode command handler
-
-When the user message is exactly `/claudecode` or `/claudecode exit`, you MUST follow these steps. Do NOT treat it as a question or conversation — execute the steps below.
-
-### /claudecode
-
-1. Run: `command -v claude` — if not found, reply "Claude Code is not installed on this server." and stop.
-2. Run: `claude auth status --json 2>&1` — parse the JSON output.
-3. If `loggedIn` is `false`:
-   - Run: `claude auth login < /dev/null 2>&1`
-   - Extract the URL starting with `https://claude.ai/oauth/` from the output.
-   - Send ONLY the URL as a clickable link to the user.
-   - Reply: "Sign in with your Claude Max account at the link above. Then send /claudecode again."
-   - Stop here.
-4. If `loggedIn` is `true`:
-   - Run: `pgrep -f "claude remote-control"` — if found, reply "Session already active. Send /claudecode exit first." and stop.
-   - Run: `cd /data/workspace && claude remote-control 2>&1 &`
-   - Wait 5 seconds. Read the process output.
-   - Extract the URL starting with `https://claude.ai/remote/` from the output.
-   - Send the URL as a clickable link to the user.
-
-### /claudecode exit
-
-Run: `pkill -f "claude remote-control"` and reply "Remote Control session terminated."
-CLAUDE_CODE
-    echo "  Claude Code section appended."
-}
+## NOTE: /claudecode is now handled as a native runtime command in the
+## ZeroClaw binary (ChannelRuntimeCommand::ClaudeCodeStart/Exit).
+## The old prompt-engineering approach (append_claude_code_section) has
+## been removed.
 
 # ─── Tenant Validation ───────────────────────────────────────────
 
@@ -396,6 +352,10 @@ generate_managed_config() {
             exit 1
         fi
     done
+
+    # Derive CLAUDE_CODE_ENABLED from BOT_CONFIG_JSON (defaults to false)
+    export CLAUDE_CODE_ENABLED
+    CLAUDE_CODE_ENABLED=$(echo "$BOT_CONFIG_JSON" | jq -r '.claude_code_enabled // "false"')
 
     # Render config.toml from template + dynamic sections
     render_config
