@@ -267,20 +267,30 @@ append_claude_code_section() {
     echo "  Appending Claude Code section to IDENTITY.md..."
     cat >> "$IDENTITY_FILE" << 'CLAUDE_CODE'
 
-## `/cc` — Claude Code Remote Control
+## IMPORTANT: /claudecode command handler
 
-Requires Claude Max subscription. On `/cc`:
+When the user message is exactly `/claudecode` or `/claudecode exit`, you MUST follow these steps. Do NOT treat it as a question or conversation — execute the steps below.
 
-1. If `claude` not found: say "Claude Code not available on this server."
-2. Run `claude auth status --json 2>&1`. If `loggedIn` is false:
-   - Run `claude auth login 2>&1`, capture the `https://claude.ai/oauth/authorize?...` URL from output.
-   - Send URL as clickable link. Say "Sign in, then send /cc again."
+### /claudecode
+
+1. Run: `command -v claude` — if not found, reply "Claude Code is not installed on this server." and stop.
+2. Run: `claude auth status --json 2>&1` — parse the JSON output.
+3. If `loggedIn` is `false`:
+   - Run: `claude auth login < /dev/null 2>&1`
+   - Extract the URL starting with `https://claude.ai/oauth/` from the output.
+   - Send ONLY the URL as a clickable link to the user.
+   - Reply: "Sign in with your Claude Max account at the link above. Then send /claudecode again."
    - Stop here.
-3. If already logged in:
-   - If `pgrep -f "claude remote-control"` finds a process: say "Session active. Use `/cc exit` to stop it first."
-   - Otherwise run `cd /data/workspace && claude remote-control 2>&1 &`, wait 5s, capture the `https://claude.ai/remote/...` URL, send as clickable link.
+4. If `loggedIn` is `true`:
+   - Run: `pgrep -f "claude remote-control"` — if found, reply "Session already active. Send /claudecode exit first." and stop.
+   - Run: `cd /data/workspace && claude remote-control 2>&1 &`
+   - Wait 5 seconds. Read the process output.
+   - Extract the URL starting with `https://claude.ai/remote/` from the output.
+   - Send the URL as a clickable link to the user.
 
-On `/cc exit`: run `pkill -f "claude remote-control"`, confirm terminated.
+### /claudecode exit
+
+Run: `pkill -f "claude remote-control"` and reply "Remote Control session terminated."
 CLAUDE_CODE
     echo "  Claude Code section appended."
 }
