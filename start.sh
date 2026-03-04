@@ -251,69 +251,6 @@ install_claude_code() {
 ## The old prompt-engineering approach (append_claude_code_section) has
 ## been removed.
 
-# ─── Tenant Validation ───────────────────────────────────────────
-
-validate_tenant_startup() {
-    echo "Validating tenant with backend..."
-
-    local response
-    response=$(curl -sf -X POST "${BACKEND_URL}/bot-stats" \
-        -H "Content-Type: application/json" \
-        -H "x-tenant-key: ${TENANT_AUTH_KEY}" \
-        -d "{\"tenant_id\": \"${TENANT_ID}\"}" 2>&1) || true
-
-    if [ -z "$response" ]; then
-        echo "WARNING: Could not reach backend for tenant validation. Starting anyway..."
-        return 0
-    fi
-
-    local valid
-    valid=$(echo "$response" | jq -r '.valid // false')
-
-    if [ "$valid" != "true" ]; then
-        local reason
-        reason=$(echo "$response" | jq -r '.reason // "unknown"')
-        # Allow 'provisioning' status — bot starts before Railway webhook activates tenant
-        if [ "$reason" = "provisioning" ]; then
-            echo "Tenant is still provisioning. Starting anyway (Railway webhook will activate on Deployment.deployed)."
-            return 0
-        fi
-        echo "ERROR: Tenant validation failed — reason: ${reason}"
-        echo "Bot will not start. Tenant status must be 'active' or 'provisioning'."
-        exit 1
-    fi
-
-    echo "Tenant validated successfully."
-}
-
-validate_tenant_periodic() {
-    while true; do
-        sleep 300  # 5 minutes
-
-        local response
-        response=$(curl -sf -X POST "${BACKEND_URL}/bot-stats" \
-            -H "Content-Type: application/json" \
-            -H "x-tenant-key: ${TENANT_AUTH_KEY}" \
-            -d "{\"tenant_id\": \"${TENANT_ID}\"}" 2>&1) || true
-
-        if [ -z "$response" ]; then
-            echo "WARNING: Periodic validation — could not reach backend. Continuing..."
-            continue
-        fi
-
-        local valid
-        valid=$(echo "$response" | jq -r '.valid // false')
-
-        if [ "$valid" != "true" ]; then
-            local reason
-            reason=$(echo "$response" | jq -r '.reason // "unknown"')
-            echo "FATAL: Tenant no longer valid — reason: ${reason}. Shutting down daemon."
-            kill "$DAEMON_PID" 2>/dev/null || true
-            exit 1
-        fi
-    done
-}
-
 # ─── Seed USER.md with defaults (preserves existing) ─────────────
 
 USER_MD_FILE="/data/.zeroclaw/USER.md"
@@ -345,7 +282,7 @@ USERMD
 
 generate_managed_config() {
     # Validate required env vars
-    local required_vars="BOT_TOKEN TENANT_ID BACKEND_URL OPENROUTER_API_KEY DEFAULT_MODEL TELEGRAM_USERNAME TENANT_AUTH_KEY"
+    local required_vars="BOT_TOKEN TENANT_ID OPENROUTER_API_KEY DEFAULT_MODEL TELEGRAM_USERNAME"
     for var in $required_vars; do
         if [ -z "${!var}" ]; then
             echo "ERROR: Required env var $var is not set. Cannot start managed bot."
@@ -378,11 +315,6 @@ start_managed() {
     # Export OPENROUTER_API_KEY as ZEROCLAW_API_KEY (ZeroClaw reads this env var)
     export ZEROCLAW_API_KEY="${OPENROUTER_API_KEY}"
 
-    # Start periodic tenant validation in background
-    validate_tenant_periodic &
-    local validation_pid=$!
-    echo "Periodic validation started (PID: $validation_pid)"
-
     # Start ZeroClaw daemon (with pre-flight check for unexpected auto-start)
     if pgrep -x zeroclaw > /dev/null 2>&1; then
         echo "WARNING: zeroclaw process already running before explicit start. Killing it."
@@ -395,7 +327,7 @@ start_managed() {
     echo "ZeroClaw daemon started (PID: $DAEMON_PID)"
 
     # Trap to clean up on exit
-    trap "kill $validation_pid $DAEMON_PID 2>/dev/null; exit" EXIT TERM INT
+    trap "kill $DAEMON_PID 2>/dev/null; exit" EXIT TERM INT
 
     # Wait for daemon — if it dies, cleanup happens via trap
     wait $DAEMON_PID
@@ -461,10 +393,7 @@ if [ "$CLAWLAUNCHER_MODE" = "managed" ]; then
     # Generate config + identity from templates
     generate_managed_config
 
-    # Validate tenant before starting
-    validate_tenant_startup
-
-    # Start daemon + sidecars (does not return)
+    # Start daemon (does not return)
     start_managed
 else
     # Interactive mode (original behavior)
