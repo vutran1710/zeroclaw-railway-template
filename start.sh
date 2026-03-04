@@ -242,7 +242,7 @@ install_claude_code() {
     fi
 
     echo "  Installing Claude Code CLI..."
-    if npm install -g @anthropic-ai/claudecode; then
+    if npm install -g @anthropic-ai/claude-code; then
         echo "  Claude Code CLI installed: $(claude --version 2>/dev/null || echo 'unknown version')"
     else
         echo "  WARNING: Claude Code CLI install failed. Bot will start without it."
