@@ -267,40 +267,20 @@ append_claude_code_section() {
     echo "  Appending Claude Code section to IDENTITY.md..."
     cat >> "$IDENTITY_FILE" << 'CLAUDE_CODE'
 
-## Claude Code (Remote Control)
+## `/cc` — Claude Code Remote Control
 
-Your server has Claude Code CLI installed. Users can launch a Remote Control session to get full Claude Code access in their browser. This requires a Claude Max subscription.
+Requires Claude Max subscription. On `/cc`:
 
-### `/claudecode` command
+1. If `claude` not found: say "Claude Code not available on this server."
+2. Run `claude auth status --json 2>&1`. If `loggedIn` is false:
+   - Run `claude auth login 2>&1`, capture the `https://claude.ai/oauth/authorize?...` URL from output.
+   - Send URL as clickable link. Say "Sign in, then send /cc again."
+   - Stop here.
+3. If already logged in:
+   - If `pgrep -f "claude remote-control"` finds a process: say "Session active. Use `/cc exit` to stop it first."
+   - Otherwise run `cd /data/workspace && claude remote-control 2>&1 &`, wait 5s, capture the `https://claude.ai/remote/...` URL, send as clickable link.
 
-When the user sends `/claudecode`:
-
-1. Check if `claude` command exists. If not, tell the user Claude Code is not available on this server.
-2. Check auth status: run `claude auth status --json 2>&1` and check the `loggedIn` field.
-3. **If NOT logged in** (first time setup):
-   a. Run: `claude auth login 2>&1` and capture the output. It will print a URL starting with `https://claude.ai/oauth/authorize?...`.
-   b. Send that URL to the user as a clickable link.
-   c. Tell the user: "Open this link to sign in with your Claude account (requires Max subscription). Once done, send `/claudecode` again to start your session."
-   d. Stop here — do not proceed to launch remote-control.
-4. **If logged in:**
-   a. Check if a `claude` process is already running (`pgrep -f "claude remote-control"`). If yes, tell the user a session is already active and remind them to use `/claudecode exit` first.
-   b. Run: `cd /data/workspace && claude remote-control 2>&1 &`
-   c. Wait 5 seconds, then read the output to capture the session URL (looks like `https://claude.ai/remote/...`)
-   d. Send the URL to the user as a clickable link.
-   e. Tell them to open it in their browser to access Claude Code.
-
-### `/claudecode exit` command
-
-When the user sends `/claudecode exit`:
-
-1. Run: `pkill -f "claude remote-control"` to kill the session
-2. Confirm to the user that the session was terminated
-
-### Important
-
-- First `/claudecode` triggers login if needed — only once, auth persists across sessions
-- Only one Remote Control session at a time
-- The session runs in `/data/workspace` — files persist across sessions
+On `/cc exit`: run `pkill -f "claude remote-control"`, confirm terminated.
 CLAUDE_CODE
     echo "  Claude Code section appended."
 }
