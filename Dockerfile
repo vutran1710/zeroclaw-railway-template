@@ -38,11 +38,16 @@ RUN apt-get update && apt-get install -y \
     imagemagick \
     && rm -rf /var/lib/apt/lists/*
 
-# Download pre-built ZeroClaw binary from official releases
-ARG ZEROCLAW_VERSION=v0.1.8
+# Download pre-built ZeroClaw binary from fork releases (latest or pinned)
+ARG ZEROCLAW_VERSION=""
+ARG ZEROCLAW_REPO="1clawx/zeroclaw"
 ARG TARGETARCH
 RUN ARCH=$([ "$TARGETARCH" = "arm64" ] && echo "aarch64" || echo "x86_64") && \
-    curl -fsSL --retry 3 --retry-delay 5 "https://github.com/zeroclaw-labs/zeroclaw/releases/download/${ZEROCLAW_VERSION}/zeroclaw-${ARCH}-unknown-linux-gnu.tar.gz" \
+    if [ -z "$ZEROCLAW_VERSION" ]; then \
+      ZEROCLAW_VERSION=$(curl -fsSL "https://api.github.com/repos/${ZEROCLAW_REPO}/releases/latest" | grep '"tag_name"' | cut -d'"' -f4); \
+    fi && \
+    echo "Installing zeroclaw ${ZEROCLAW_VERSION} from ${ZEROCLAW_REPO}" && \
+    curl -fsSL --retry 3 --retry-delay 5 "https://github.com/${ZEROCLAW_REPO}/releases/download/${ZEROCLAW_VERSION}/zeroclaw-${ARCH}-unknown-linux-gnu.tar.gz" \
     | tar -xz -C /usr/local/bin zeroclaw \
     && chmod +x /usr/local/bin/zeroclaw
 
