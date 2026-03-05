@@ -38,9 +38,9 @@ RUN apt-get update && apt-get install -y \
     imagemagick \
     && rm -rf /var/lib/apt/lists/*
 
-# Download pre-built ZeroClaw binary from fork releases (latest or pinned)
+# Download pre-built ZeroClaw binary from official releases
 ARG ZEROCLAW_VERSION=""
-ARG ZEROCLAW_REPO="1clawx/zeroclaw"
+ARG ZEROCLAW_REPO="zeroclaw-labs/zeroclaw"
 ARG TARGETARCH
 RUN ARCH=$([ "$TARGETARCH" = "arm64" ] && echo "aarch64" || echo "x86_64") && \
     if [ -z "$ZEROCLAW_VERSION" ]; then \
