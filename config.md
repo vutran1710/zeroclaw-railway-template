@@ -17,7 +17,7 @@ All top-level config sections available in `config.toml`. Based on upstream v0.1
 | `reliability` | Retries, fallback providers | no | |
 | `scheduler` | Periodic task execution | no | enabled by default upstream |
 | `agent` | Orchestration settings | yes | 50 max tool iterations, parallel tools on |
-| `skills` | Skills loading | no | |
+| `skills` | Skills loading | yes | community open-skills enabled |
 | `model_routes` | Route hints to provider+model | no | |
 | `embedding_routes` | Embedding routing | no | |
 | `query_classification` | Auto-classify messages to models | no | useful for cost optimization |
@@ -65,3 +65,4 @@ All top-level config sections available in `config.toml`. Based on upstream v0.1
 | `web_search.provider` | `"duckduckgo"` | Free, no API key needed |
 | `goal_loop.enabled` | `true` | Autonomous goal pursuit with defaults |
 | `multimodal.allow_remote_fetch` | `true` | Bot can read images from URLs |
+| `skills.open_skills_enabled` | `true` | Community skills repo loaded |
