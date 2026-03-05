@@ -35,6 +35,42 @@ IDENTITY_FILE="/data/.zeroclaw/IDENTITY.md"
 TEMPLATE_DIR="/app/templates"
 DAEMON_PID=""
 
+# ─── Virtual desktop (Xvfb + Fluxbox + x11vnc + noVNC) ──────────
+start_virtual_desktop() {
+    echo "Starting virtual desktop..."
+
+    # Start Xvfb (virtual framebuffer)
+    Xvfb :99 -screen 0 "${SCREEN_WIDTH:-1366}x${SCREEN_HEIGHT:-768}x${SCREEN_DEPTH:-24}" -ac +extension GLX +render -noreset &
+    sleep 1
+
+    # Start Fluxbox window manager
+    fluxbox &
+    sleep 0.5
+
+    # Start x11vnc (VNC server on display :99)
+    x11vnc -display :99 -nopw -listen 0.0.0.0 -rfbport 5900 -shared -forever -noxdamage &
+    sleep 0.5
+
+    # Start noVNC (web-based VNC viewer on port 6080)
+    NOVNC_PATH=$(find /usr -path "*/novnc/utils/novnc_proxy" 2>/dev/null | head -1)
+    if [ -z "$NOVNC_PATH" ]; then
+        NOVNC_PATH=$(find /usr -path "*/novnc/utils/launch.sh" 2>/dev/null | head -1)
+    fi
+    if [ -n "$NOVNC_PATH" ]; then
+        "$NOVNC_PATH" --vnc localhost:5900 --listen 6080 &
+    else
+        websockify --web /usr/share/novnc 6080 localhost:5900 &
+    fi
+
+    echo "  Virtual desktop started (DISPLAY=:99)"
+    echo "  noVNC viewer: http://0.0.0.0:6080/vnc.html"
+}
+
+# Start virtual desktop if Xvfb is available
+if command -v Xvfb >/dev/null 2>&1; then
+    start_virtual_desktop
+fi
+
 # ─── Model overrides (persisted by /models command) ──────────────
 
 MODEL_OVERRIDES_FILE="/data/.zeroclaw/model-overrides.json"

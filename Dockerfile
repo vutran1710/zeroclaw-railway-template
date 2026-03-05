@@ -28,6 +28,14 @@ RUN apt-get update && apt-get install -y \
     tmux \
     rsync \
     openssh-client \
+    # Virtual desktop (Xvfb + Fluxbox + noVNC)
+    xvfb \
+    fluxbox \
+    x11vnc \
+    novnc \
+    websockify \
+    scrot \
+    imagemagick \
     && rm -rf /var/lib/apt/lists/*
 
 # Download pre-built ZeroClaw binary from 1clawx fork releases
@@ -92,8 +100,14 @@ RUN chmod +x /app/start.sh
 ENV HOME=/data
 ENV SHELL=/bin/bash
 
-# Expose ZeroClaw gateway port
-EXPOSE 8080
+# Virtual display for browser & screenshot tools
+ENV DISPLAY=:99
+ENV SCREEN_WIDTH=1366
+ENV SCREEN_HEIGHT=768
+ENV SCREEN_DEPTH=24
+
+# Expose ZeroClaw gateway port + noVNC web viewer
+EXPOSE 8080 6080
 
 WORKDIR /data
 
